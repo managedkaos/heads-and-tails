@@ -38,15 +38,24 @@ var themes = map[string]theme{
 }
 
 func main() {
+	if len(os.Args) == 1 {
+		fmt.Print(helpText())
+		return
+	}
+
 	opts, files, err := parseArgs(os.Args[1:], os.Stdout)
 	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			fmt.Print(helpText())
+			return
+		}
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
 
 	if len(files) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: ,ht [flags] FILE [FILE...]")
-		os.Exit(2)
+		fmt.Print(helpText())
+		return
 	}
 
 	hadError := false
@@ -75,43 +84,54 @@ func parseArgs(args []string, stdout *os.File) (options, []string, error) {
 	fs := flag.NewFlagSet(",ht", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
-	lines := fs.Int("lines", 10, "number of lines to show for both head and tail")
-	head := fs.Int("head", -1, "number of head lines to show")
-	tail := fs.Int("tail", -1, "number of tail lines to show")
-	colorMode := fs.String("color", "auto", "color output: auto, always, never")
-	themeName := fs.String("theme", "default", "theme name: default, plain")
+	lines := 10
+	head := -1
+	tail := -1
+	colorMode := "auto"
+	themeName := "default"
+
+	fs.IntVar(&lines, "lines", lines, "number of lines to show for both head and tail")
+	fs.IntVar(&lines, "l", lines, "number of lines to show for both head and tail")
+	fs.IntVar(&head, "head", head, "number of head lines to show")
+	fs.IntVar(&head, "h", head, "number of head lines to show")
+	fs.IntVar(&tail, "tail", tail, "number of tail lines to show")
+	fs.IntVar(&tail, "t", tail, "number of tail lines to show")
+	fs.StringVar(&colorMode, "color", colorMode, "color output: auto, always, never")
+	fs.StringVar(&colorMode, "c", colorMode, "color output: auto, always, never")
+	fs.StringVar(&themeName, "theme", themeName, "theme name: default, plain")
+	fs.StringVar(&themeName, "T", themeName, "theme name: default, plain")
 
 	if err := fs.Parse(args); err != nil {
 		return options{}, nil, err
 	}
 
-	if *lines < 0 {
+	if lines < 0 {
 		return options{}, nil, errors.New("-lines must be non-negative")
 	}
-	if *head < -1 {
+	if head < -1 {
 		return options{}, nil, errors.New("-head must be non-negative")
 	}
-	if *tail < -1 {
+	if tail < -1 {
 		return options{}, nil, errors.New("-tail must be non-negative")
 	}
-	if _, ok := themes[*themeName]; !ok {
-		return options{}, nil, fmt.Errorf("unknown theme %q", *themeName)
+	if _, ok := themes[themeName]; !ok {
+		return options{}, nil, fmt.Errorf("unknown theme %q", themeName)
 	}
 
 	opts := options{
-		head:      *lines,
-		tail:      *lines,
-		colorMode: *colorMode,
-		theme:     *themeName,
+		head:      lines,
+		tail:      lines,
+		colorMode: colorMode,
+		theme:     themeName,
 	}
-	if *head >= 0 {
-		opts.head = *head
+	if head >= 0 {
+		opts.head = head
 	}
-	if *tail >= 0 {
-		opts.tail = *tail
+	if tail >= 0 {
+		opts.tail = tail
 	}
 
-	switch *colorMode {
+	switch colorMode {
 	case "auto":
 		opts.useColor = isTerminal(stdout)
 	case "always":
@@ -119,9 +139,9 @@ func parseArgs(args []string, stdout *os.File) (options, []string, error) {
 	case "never":
 		opts.useColor = false
 	default:
-		return options{}, nil, fmt.Errorf("unknown color mode %q", *colorMode)
+		return options{}, nil, fmt.Errorf("unknown color mode %q", colorMode)
 	}
-	if *themeName == "plain" {
+	if themeName == "plain" {
 		opts.useColor = false
 	}
 
@@ -202,4 +222,28 @@ func isTerminal(f *os.File) bool {
 		return false
 	}
 	return info.Mode()&os.ModeCharDevice != 0
+}
+
+func helpText() string {
+	return `Usage:
+  ,ht [flags] FILE [FILE...]
+
+Print the first and last lines of each file with line numbers.
+Each file section starts with the filename and separates head/tail output
+with a 20-dash line.
+
+Flags:
+  -lines, -l N        number of lines to show for both head and tail (default 10)
+  -head,  -h N        number of head lines to show, overriding -lines
+  -tail,  -t N        number of tail lines to show, overriding -lines
+  -color, -c MODE     color output: auto, always, never (default auto)
+  -theme, -T NAME     theme name: default, plain (default default)
+  -help               show this help output
+
+Examples:
+  ,ht notes.txt
+  ,ht -l 5 notes.txt report.txt
+  ,ht -h 20 -t 5 -c always app.log
+  ,ht -T plain app.log
+`
 }
