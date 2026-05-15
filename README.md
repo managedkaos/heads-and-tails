@@ -1,4 +1,4 @@
-# ,ht
+# Head and Tails
 
 `,ht` prints the first and last lines of each file with line numbers, a 20-dash separator, and optional ANSI color.
 
